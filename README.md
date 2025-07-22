@@ -35,7 +35,7 @@ A comprehensive, production-ready data pipeline implementing modern DataOps prac
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/coventry-bs/coventry-dw.git
+   git clone https://github.com/iam-hiren/coventry-dw.git
    cd coventry-dw
    ```
 
