@@ -1,0 +1,220 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: coventry-dw-postgres
+    environment:
+      POSTGRES_DB: coventry_dw
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - coventry-dw-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d coventry_dw"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis Cache (Optional)
+  redis:
+    image: redis:7-alpine
+    container_name: coventry-dw-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - coventry-dw-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # LocalStack for AWS Services (Development)
+  localstack:
+    image: localstack/localstack:latest
+    container_name: coventry-dw-localstack
+    environment:
+      SERVICES: s3,rds,logs,iam
+      DEBUG: 1
+      DATA_DIR: /tmp/localstack/data
+      DOCKER_HOST: unix:///var/run/docker.sock
+      HOST_TMP_FOLDER: /tmp/localstack
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    volumes:
+      - localstack_data:/tmp/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - coventry-dw-network
+    restart: unless-stopped
+
+  # Data Pipeline Application
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: coventry-dw-pipeline
+    environment:
+      - ENVIRONMENT=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=coventry_dw
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres123
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=eu-west-2
+      - S3_BUCKET_NAME=coventry-data-lake
+      - LOG_LEVEL=INFO
+      - ENABLE_MONITORING=true
+    volumes:
+      - .:/app
+      - pipeline_logs:/app/logs
+      - pipeline_output:/app/output
+    networks:
+      - coventry-dw-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_started
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+  # Jupyter Notebook for Data Analysis (Development)
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: coventry-dw-jupyter
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=coventry123
+    ports:
+      - "8888:8888"
+    volumes:
+      - .:/app
+      - jupyter_data:/home/appuser/.jupyter
+    networks:
+      - coventry-dw-network
+    depends_on:
+      - postgres
+    command: >
+      bash -c "
+        pip install jupyterlab &&
+        jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='coventry123'
+      "
+    restart: unless-stopped
+
+  # pgAdmin for Database Management (Development)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: coventry-dw-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@coventrybs.co.uk
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - coventry-dw-network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # Grafana for Monitoring (Optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: coventry-dw-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./infra/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - coventry-dw-network
+    restart: unless-stopped
+
+  # Prometheus for Metrics Collection (Optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: coventry-dw-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - coventry-dw-network
+    restart: unless-stopped
+
+  # MinIO for S3-compatible storage (Alternative to LocalStack S3)
+  minio:
+    image: minio/minio:latest
+    container_name: coventry-dw-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - coventry-dw-network
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+networks:
+  coventry-dw-network:
+    driver: bridge
+    name: coventry-dw-network
+
+volumes:
+  postgres_data:
+    name: coventry-dw-postgres-data
+  redis_data:
+    name: coventry-dw-redis-data
+  localstack_data:
+    name: coventry-dw-localstack-data
+  pipeline_logs:
+    name: coventry-dw-pipeline-logs
+  pipeline_output:
+    name: coventry-dw-pipeline-output
+  jupyter_data:
+    name: coventry-dw-jupyter-data
+  pgadmin_data:
+    name: coventry-dw-pgadmin-data
+  grafana_data:
+    name: coventry-dw-grafana-data
+  prometheus_data:
+    name: coventry-dw-prometheus-data
+  minio_data:
+    name: coventry-dw-minio-data

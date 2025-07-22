@@ -1,0 +1,105 @@
+pipeline:
+  name: "coventry-dw-pipeline"
+  version: "1.0.0"
+  description: "Coventry Building Society Data Warehouse Pipeline"
+
+environments:
+  development:
+    data_sources:
+      - name: "transactions"
+        type: "csv"
+        path: "${TRANSACTIONS_DATA_PATH:-data/transactions.csv}"
+        schema_path: "${TRANSACTIONS_SCHEMA_PATH:-schemas/transactions_schema.json}"
+      - name: "accounts"
+        type: "json"
+        path: "${ACCOUNTS_DATA_PATH:-data/accounts.json}"
+        schema_path: "${ACCOUNTS_SCHEMA_PATH:-schemas/accounts_schema.json}"
+    
+    storage:
+      bronze_path: "${BRONZE_PATH:-output/bronze}"
+      silver_path: "${SILVER_PATH:-output/silver}"
+      gold_path: "${GOLD_PATH:-output/gold}"
+      quarantine_path: "${QUARANTINE_PATH:-output/quarantine}"
+      format: "${STORAGE_FORMAT:-parquet}"
+      partition_cols: ["${PARTITION_COLUMNS:-year,month}"]
+      compression: "${COMPRESSION:-snappy}"
+    
+    database:
+      enabled: true
+      connection_pool_size: 5
+      timeout: 30
+    
+    data_quality:
+      enable_validation: true
+      fail_on_error: false
+      coverage_threshold: 0.95
+      rules:
+        - name: "transaction_amount_positive"
+          column: "amount"
+          check: "greater_than"
+          value: 0
+        - name: "account_id_not_null"
+          column: "account_id"
+          check: "not_null"
+        - name: "transaction_date_valid"
+          column: "transaction_date"
+          check: "date_range"
+          min_date: "2020-01-01"
+          max_date: "2030-12-31"
+
+  production:
+    data_sources:
+      - name: "transactions"
+        type: "s3"
+        path: "${PROD_TRANSACTIONS_PATH:-s3://coventry-data-lake/raw/transactions/}"
+        schema_path: "${TRANSACTIONS_SCHEMA_PATH:-schemas/transactions_schema.json}"
+      - name: "accounts"
+        type: "s3"
+        path: "${PROD_ACCOUNTS_PATH:-s3://coventry-data-lake/raw/accounts/}"
+        schema_path: "${ACCOUNTS_SCHEMA_PATH:-schemas/accounts_schema.json}"
+    
+    storage:
+      bronze_path: "${PROD_BRONZE_PATH:-s3://coventry-data-lake/bronze}"
+      silver_path: "${PROD_SILVER_PATH:-s3://coventry-data-lake/silver}"
+      gold_path: "${PROD_GOLD_PATH:-s3://coventry-data-lake/gold}"
+      quarantine_path: "${PROD_QUARANTINE_PATH:-s3://coventry-data-lake/quarantine}"
+      format: "${STORAGE_FORMAT:-parquet}"
+      partition_cols: ["${PARTITION_COLUMNS:-year,month}"]
+      compression: "${COMPRESSION:-snappy}"
+    
+    database:
+      enabled: true
+      connection_pool_size: 20
+      timeout: 60
+    
+    data_quality:
+      enable_validation: true
+      fail_on_error: true
+      coverage_threshold: 0.98
+
+logging:
+  level: "INFO"
+  format: "json"
+  handlers:
+    - type: "console"
+    - type: "file"
+      filename: "logs/pipeline.log"
+      max_bytes: 10485760  # 10MB
+      backup_count: 5
+
+monitoring:
+  enabled: true
+  metrics_export_interval: 60
+  alerts:
+    email:
+      enabled: true
+      on_failure: true
+      on_data_quality_issues: true
+    slack:
+      enabled: true
+      on_failure: true
+
+retry_policy:
+  max_attempts: 3
+  backoff_factor: 2
+  max_delay: 300
