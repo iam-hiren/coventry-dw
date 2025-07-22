@@ -335,20 +335,3 @@ Common issues and solutions:
 2. **Permission Errors**: Verify file system permissions
 3. **Memory Issues**: Adjust batch sizes in configuration
 4. **Schema Conflicts**: Review schema evolution logs
-
-## 📄 License
-
-This project is proprietary to Coventry Building Society. All rights reserved.
-
-## 🏆 Acknowledgments
-
-- **DataOps Team**: Core development and maintenance
-- **Infrastructure Team**: AWS and deployment support
-- **Security Team**: Compliance and security review
-- **Business Stakeholders**: Requirements and validation
-
----
-
-**Coventry Building Society Data Warehouse Pipeline v1.0.0**
-
-*Built with ❤️ by the DataOps Team*
