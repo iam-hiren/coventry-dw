@@ -136,9 +136,13 @@ data/
 output/
 logs/
 *.csv
-*.json
+data/*.json
+output/*.json
 *.parquet
 *.log
+
+# Allow schema files
+!schemas/*.json
 
 # Presentation and documentation files (keep only README.md for GitHub)
 TECHNICAL_PRESENTATION.md
