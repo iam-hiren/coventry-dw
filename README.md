@@ -327,22 +327,6 @@ coventry-dw/
 4. Update documentation
 5. Submit PR with detailed description
 
-## 📚 Documentation
-
-- **API Documentation**: Auto-generated from docstrings
-- **Architecture Guide**: Detailed system design
-- **Operations Manual**: Deployment and maintenance
-- **User Guide**: End-user documentation
-
-## 🆘 Support
-
-### Getting Help
-
-- **Issues**: GitHub Issues for bugs and feature requests
-- **Discussions**: GitHub Discussions for questions
-- **Wiki**: Detailed documentation and examples
-- **Email**: dataops@coventrybs.co.uk
-
 ### Troubleshooting
 
 Common issues and solutions:
