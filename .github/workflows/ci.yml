@@ -8,6 +8,21 @@ on:
   schedule:
     # Run tests daily at 2 AM UTC
     - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to run tests against'
+        required: false
+        default: 'test'
+        type: choice
+        options:
+        - test
+        - staging
+      skip_tests:
+        description: 'Skip test execution (lint only)'
+        required: false
+        default: false
+        type: boolean
 
 env:
   PYTHON_VERSION: '3.11'
